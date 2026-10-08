@@ -1,0 +1,39 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(mvn -q compile -DskipTests 2>&1 | tail -30)",
+      "Bash(mvn -q compile -DskipTests 2>&1 | tail -15)",
+      "Bash(which gradle; gradle --version 2>/dev/null | head -5; java -version 2>&1 | head -2)",
+      "Bash(gradle wrapper --gradle-version 8.14.3 --distribution-type bin 2>&1 | tail -5 && ls -la gradlew gradle/wrapper/)",
+      "Bash(./gradlew classes 2>&1 | tail -8)",
+      "Bash(./gradlew classes 2>&1 | head -20)",
+      "Bash(pg_isready 2>&1; psql -lqt 2>&1 | grep -i quizlet; echo \"---\"; psql -U postgres -c \"SELECT version\\(\\);\" 2>&1 | head -3)",
+      "Bash(brew services start postgresql@15 2>&1 | tail -2)",
+      "Bash(launchctl list)",
+      "Read(//opt/homebrew/var/postgresql@15/**)",
+      "Read(//opt/homebrew/var/log/**)",
+      "Bash(brew upgrade postgresql@15 2>&1 | tail -6)",
+      "Bash(brew list --versions postgresql@15)",
+      "Bash(brew info postgresql@15)",
+      "Read(//opt/homebrew/Cellar/postgresql@15/15.19/bin/**)",
+      "Bash(/opt/homebrew/opt/postgresql@15/bin/postgres --version)",
+      "Bash(brew services start postgresql@15 2>&1 | tail -1 && sleep 3 && nc -z localhost 5432 && echo \"5432 OPEN\" || tail -3 /opt/homebrew/var/log/postgresql@15.log)",
+      "Bash(export PATH=\"/opt/homebrew/opt/postgresql@15/bin:$PATH\"; psql -d postgres -c \"CREATE ROLE postgres WITH LOGIN PASSWORD 'postgres' SUPERUSER;\" 2>&1; psql -d postgres -c \"CREATE DATABASE quizlet_fake OWNER postgres;\" 2>&1; psql -d postgres -c \"SELECT datname FROM pg_database WHERE datname='quizlet_fake';\")",
+      "Bash(./gradlew bootRun 2>&1 | tee /tmp/bootrun.log | grep -E -i \"flyway|migrat|error|exception|Started|validat\" | head -25)",
+      "Bash(./gradlew classes 2>&1 | grep -A8 \"Could not find\" | head -15)",
+      "Bash(./gradlew dependencyInsight --dependency flyway --configuration runtimeClasspath 2>&1 | head -20)",
+      "Bash(curl -s https://repo1.maven.org/maven2/org/springframework/boot/spring-boot-dependencies/3.3.4/spring-boot-dependencies-3.3.4.pom | grep -o \"spring-boot-starter-flyway</artifactId>\" | head -2; echo \"---\"; curl -s https://repo1.maven.org/maven2/org/springframework/boot/spring-boot-dependencies/3.3.4/spring-boot-dependencies-3.3.4.pom | grep -A3 \"spring-boot-starter-flyway</artifactId>\" | head -5)",
+      "Bash(curl -sL https://repo1.maven.org/maven2/org/springframework/boot/spring-boot-dependencies/3.3.4/spring-boot-dependencies-3.3.4.pom -o /tmp/bom.pom)",
+      "Read(//tmp/**)",
+      "Bash(./gradlew bootRun 2>&1 | tee /tmp/bootrun.log | grep -E -i \"flyway|migrat|error|exception|Started|validat|Successfully applied\" | head -25)",
+      "Bash(./gradlew bootRun 2>&1 | tee /tmp/bootrun.log | grep -E -i \"flyway|migrat|Started QuizletFake|error|validat|Successfully applied|Failure\" | head -20)",
+      "Bash(curl -s -X POST http://localhost:8080/api/auth/register -H \"Content-Type: application/json\" -d '{\"username\":\"testuser\",\"email\":\"test@example.com\",\"password\":\"password123\"}' | head -c 400; echo; export PATH=\"/opt/homebrew/opt/postgresql@15/bin:$PATH\"; psql -U postgres -d quizlet_fake -c \"\\\\dt\" -c \"SELECT version, description, success FROM flyway_schema_history;\")",
+      "Bash(brew services stop postgresql@15 2>&1 | tail -1; cd /Users/vomanh.dung/IdeaProjects/quizlet_fake/docker && docker compose up -d 2>&1 | tail -3)",
+      "Bash(docker compose ps --format \"table {{.Name}}\\\\t{{.Status}}\\\\t{{.Ports}}\" && docker exec quizlet-fake-postgres pg_isready -U postgres -d quizlet_fake)",
+      "Bash(lsof -nP -iTCP:8080 -sTCP:LISTEN | head -5)",
+      "Bash(ps -p 2836 -o pid,lstart,command | cat)",
+      "Bash(kill 70206 2>/dev/null; sleep 2; lsof -nP -iTCP:8081 -sTCP:LISTEN | grep -q 8081 && echo \"still up\" || echo \"app stopped\")",
+      "Bash(./gradlew compileJava -q && java -cp build/classes/java/main com.example.quizlet.learning.LearningDemo)"
+    ]
+  }
+}

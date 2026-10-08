@@ -1,0 +1,36 @@
+# Local PostgreSQL for the quizlet-fake API.
+#
+# Usage (from the docker/ directory):
+#   docker compose up -d        # start
+#   docker compose down         # stop (data survives in the named volume)
+#   docker compose down -v      # stop AND wipe data (fresh schema on next start;
+#                               # Flyway will re-run all migrations)
+#
+# NOTE: stop the Homebrew Postgres service first if it is running,
+# otherwise port 5432 will conflict:
+#   brew services stop postgresql@15
+#
+# Credentials match src/main/resources/application.properties.
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: quizlet-fake-postgres
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: quizlet_fake
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d quizlet_fake"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+
+volumes:
+  postgres_data:

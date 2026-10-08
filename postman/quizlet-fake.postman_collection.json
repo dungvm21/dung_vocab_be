@@ -1,0 +1,1286 @@
+{
+	"info": {
+		"_postman_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+		"name": "Quizlet Fake API",
+		"description": "Complete test suite for the quizlet-fake vocabulary API.\n\n## Setup\n1. Start the app: `./gradlew bootRun` (runs on port 8081, Postgres via `docker/docker-compose.yml`)\n2. Run folder **0. Seed Sample Data** first (top to bottom) — it registers 2 users, creates decks/cards and auto-captures tokens & ids into collection variables.\n3. Then run any other folder.\n\n## Variables (auto-managed)\n- `baseUrl` — API host (default http://localhost:8081)\n- `accessToken` — learner1 JWT (captured on login)\n- `accessToken2` — learner2 JWT (captured on login)\n- `deckId` — IELTS deck (public, owned by learner1)\n- `kanjiDeckId` — Japanese deck (public, owned by learner1)\n- `privateDeckId` — private deck (owned by learner1)\n- `otherUserDeckId` — TOEIC deck (owned by learner2)\n- `cardId` — last created card in `deckId`",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"auth": {
+		"type": "bearer",
+		"bearer": [
+			{
+				"key": "token",
+				"value": "{{accessToken}}",
+				"type": "string"
+			}
+		]
+	},
+	"variable": [
+		{ "key": "baseUrl", "value": "http://localhost:8081" },
+		{ "key": "accessToken", "value": "" },
+		{ "key": "accessToken2", "value": "" },
+		{ "key": "deckId", "value": "" },
+		{ "key": "kanjiDeckId", "value": "" },
+		{ "key": "privateDeckId", "value": "" },
+		{ "key": "otherUserDeckId", "value": "" },
+		{ "key": "cardId", "value": "" },
+		{ "key": "tempDeckId", "value": "" },
+		{ "key": "tempCardId", "value": "" }
+	],
+	"item": [
+		{
+			"name": "0. Seed Sample Data",
+			"description": "Run in order. Registers 2 users, creates decks + cards, captures tokens and ids.",
+			"item": [
+				{
+					"name": "01. Register learner1",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('201 Created', () => pm.expect(pm.response.code).to.eql(201));",
+									"pm.test('Returns JWT + user info', () => {",
+									"    const body = pm.response.json();",
+									"    pm.expect(body.accessToken).to.be.a('string');",
+									"    pm.expect(body.username).to.eql('learner1');",
+									"    pm.expect(body.role).to.eql('ROLE_USER');",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"auth": { "type": "noauth" },
+						"method": "POST",
+						"header": [{ "key": "Content-Type", "value": "application/json" }],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"username\": \"learner1\",\n  \"email\": \"learner1@example.com\",\n  \"password\": \"password123\"\n}",
+							"options": { "raw": { "language": "json" } }
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/auth/register",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "auth", "register"]
+						}
+					}
+				},
+				{
+					"name": "02. Register learner2",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('201 Created', () => pm.expect(pm.response.code).to.eql(201));"
+								]
+							}
+						}
+					],
+					"request": {
+						"auth": { "type": "noauth" },
+						"method": "POST",
+						"header": [{ "key": "Content-Type", "value": "application/json" }],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"username\": \"learner2\",\n  \"email\": \"learner2@example.com\",\n  \"password\": \"password456\"\n}",
+							"options": { "raw": { "language": "json" } }
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/auth/register",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "auth", "register"]
+						}
+					}
+				},
+				{
+					"name": "03. Login learner1 (captures accessToken)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('200 OK', () => pm.expect(pm.response.code).to.eql(200));",
+									"const body = pm.response.json();",
+									"pm.collectionVariables.set('accessToken', body.accessToken);",
+									"pm.test('Token captured into accessToken', () => pm.expect(body.accessToken).to.be.a('string'));"
+								]
+							}
+						}
+					],
+					"request": {
+						"auth": { "type": "noauth" },
+						"method": "POST",
+						"header": [{ "key": "Content-Type", "value": "application/json" }],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"usernameOrEmail\": \"learner1\",\n  \"password\": \"password123\"\n}",
+							"options": { "raw": { "language": "json" } }
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/auth/login",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "auth", "login"]
+						}
+					}
+				},
+				{
+					"name": "04. Create deck: IELTS Vocabulary (public)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('201 Created', () => pm.expect(pm.response.code).to.eql(201));",
+									"const body = pm.response.json();",
+									"pm.collectionVariables.set('deckId', body.id);",
+									"pm.test('Owner is learner1, public', () => {",
+									"    pm.expect(body.creatorUsername).to.eql('learner1');",
+									"    pm.expect(body.isPublic).to.eql(true);",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [{ "key": "Content-Type", "value": "application/json" }],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"title\": \"IELTS Vocabulary – Band 7+\",\n  \"description\": \"High-band academic words with collocations and examples\",\n  \"category\": \"IELTS\",\n  \"isPublic\": true\n}",
+							"options": { "raw": { "language": "json" } }
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/decks",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "decks"]
+						}
+					}
+				},
+				{
+					"name": "05. Create deck: Japanese N5 Kanji (public)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('201 Created', () => pm.expect(pm.response.code).to.eql(201));",
+									"pm.collectionVariables.set('kanjiDeckId', pm.response.json().id);"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [{ "key": "Content-Type", "value": "application/json" }],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"title\": \"Japanese N5 Kanji\",\n  \"description\": \"First 100 kanji for JLPT N5 with readings\",\n  \"category\": \"Japanese\",\n  \"isPublic\": true\n}",
+							"options": { "raw": { "language": "json" } }
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/decks",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "decks"]
+						}
+					}
+				},
+				{
+					"name": "06. Create deck: My Private Notes (private)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('201 Created', () => pm.expect(pm.response.code).to.eql(201));",
+									"pm.test('Marked private', () => pm.expect(pm.response.json().isPublic).to.eql(false));",
+									"pm.collectionVariables.set('privateDeckId', pm.response.json().id);"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [{ "key": "Content-Type", "value": "application/json" }],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"title\": \"My Private Notes\",\n  \"description\": \"Personal study notes – not shared\",\n  \"category\": \"Personal\",\n  \"isPublic\": false\n}",
+							"options": { "raw": { "language": "json" } }
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/decks",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "decks"]
+						}
+					}
+				},
+				{
+					"name": "07. Add IELTS card: ubiquitous",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('201 Created', () => pm.expect(pm.response.code).to.eql(201));"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [{ "key": "Content-Type", "value": "application/json" }],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"term\": \"ubiquitous\",\n  \"definition\": \"Present, appearing, or found everywhere\",\n  \"hint\": \"Example: Smartphones are ubiquitous in modern society.\"\n}",
+							"options": { "raw": { "language": "json" } }
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/decks/{{deckId}}/cards",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "decks", "{{deckId}}", "cards"]
+						}
+					}
+				},
+				{
+					"name": "08. Add IELTS card: mitigate",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('201 Created', () => pm.expect(pm.response.code).to.eql(201));",
+									"pm.collectionVariables.set('cardId', pm.response.json().id);"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [{ "key": "Content-Type", "value": "application/json" }],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"term\": \"mitigate\",\n  \"definition\": \"To make something less severe, harmful, or painful\",\n  \"hint\": \"Example: Planting trees helps mitigate urban heat.\"\n}",
+							"options": { "raw": { "language": "json" } }
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/decks/{{deckId}}/cards",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "decks", "{{deckId}}", "cards"]
+						}
+					}
+				},
+				{
+					"name": "09. Add IELTS card: meticulous",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('201 Created', () => pm.expect(pm.response.code).to.eql(201));"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [{ "key": "Content-Type", "value": "application/json" }],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"term\": \"meticulous\",\n  \"definition\": \"Showing great attention to detail; very careful and precise\",\n  \"hint\": \"Antonym: careless\"\n}",
+							"options": { "raw": { "language": "json" } }
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/decks/{{deckId}}/cards",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "decks", "{{deckId}}", "cards"]
+						}
+					}
+				},
+				{
+					"name": "10. Add IELTS card: articulate",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('201 Created', () => pm.expect(pm.response.code).to.eql(201));"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [{ "key": "Content-Type", "value": "application/json" }],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"term\": \"articulate\",\n  \"definition\": \"Able to express thoughts and ideas clearly and effectively\",\n  \"hint\": \"Can be adjective or verb\"\n}",
+							"options": { "raw": { "language": "json" } }
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/decks/{{deckId}}/cards",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "decks", "{{deckId}}", "cards"]
+						}
+					}
+				},
+				{
+					"name": "11. Add Kanji card: 人",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('201 Created', () => pm.expect(pm.response.code).to.eql(201));"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [{ "key": "Content-Type", "value": "application/json" }],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"term\": \"人\",\n  \"definition\": \"person (ひと / hito)\",\n  \"hint\": \"3 strokes. Common words: 人口, 大人\"\n}",
+							"options": { "raw": { "language": "json" } }
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/decks/{{kanjiDeckId}}/cards",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "decks", "{{kanjiDeckId}}", "cards"]
+						}
+					}
+				},
+				{
+					"name": "12. Add Kanji card: 日",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('201 Created', () => pm.expect(pm.response.code).to.eql(201));"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [{ "key": "Content-Type", "value": "application/json" }],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"term\": \"日\",\n  \"definition\": \"day, sun (にち / ひ)\",\n  \"hint\": \"4 strokes. Common words: 日本, 毎日\"\n}",
+							"options": { "raw": { "language": "json" } }
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/decks/{{kanjiDeckId}}/cards",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "decks", "{{kanjiDeckId}}", "cards"]
+						}
+					}
+				},
+				{
+					"name": "13. Add Kanji card: 山",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('201 Created', () => pm.expect(pm.response.code).to.eql(201));"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [{ "key": "Content-Type", "value": "application/json" }],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"term\": \"山\",\n  \"definition\": \"mountain (やま / さん)\",\n  \"hint\": \"3 strokes. Common words: 富士山, 火山\"\n}",
+							"options": { "raw": { "language": "json" } }
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/decks/{{kanjiDeckId}}/cards",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "decks", "{{kanjiDeckId}}", "cards"]
+						}
+					}
+				},
+				{
+					"name": "14. Login learner2 (captures accessToken2)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('200 OK', () => pm.expect(pm.response.code).to.eql(200));",
+									"pm.collectionVariables.set('accessToken2', pm.response.json().accessToken);"
+								]
+							}
+						}
+					],
+					"request": {
+						"auth": { "type": "noauth" },
+						"method": "POST",
+						"header": [{ "key": "Content-Type", "value": "application/json" }],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"usernameOrEmail\": \"learner2@example.com\",\n  \"password\": \"password456\"\n}",
+							"options": { "raw": { "language": "json" } }
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/auth/login",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "auth", "login"]
+						}
+					}
+				},
+				{
+					"name": "15. Create deck as learner2: TOEIC Essential Words",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('201 Created', () => pm.expect(pm.response.code).to.eql(201));",
+									"pm.test('Uses learner2 token', () => pm.expect(pm.response.json().creatorUsername).to.eql('learner2'));",
+									"pm.collectionVariables.set('otherUserDeckId', pm.response.json().id);"
+								]
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [{ "key": "token", "value": "{{accessToken2}}", "type": "string" }]
+						},
+						"method": "POST",
+						"header": [{ "key": "Content-Type", "value": "application/json" }],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"title\": \"TOEIC Essential Words\",\n  \"description\": \"600 core words for TOEIC listening & reading\",\n  \"category\": \"TOEIC\",\n  \"isPublic\": true\n}",
+							"options": { "raw": { "language": "json" } }
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/decks",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "decks"]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "1. Auth",
+			"item": [
+				{
+					"name": "Register — success",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('201 Created', () => pm.expect(pm.response.code).to.eql(201));",
+									"pm.test('Bearer token issued', () => {",
+									"    const body = pm.response.json();",
+									"    pm.expect(body.tokenType).to.eql('Bearer');",
+									"    pm.expect(body.accessToken.split('.').length).to.eql(3); // JWT has 3 segments",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"auth": { "type": "noauth" },
+						"method": "POST",
+						"header": [{ "key": "Content-Type", "value": "application/json" }],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"username\": \"{{$randomUserName}}\",\n  \"email\": \"{{$randomEmail}}\",\n  \"password\": \"{{$randomPassword}}\"\n}",
+							"options": { "raw": { "language": "json" } }
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/auth/register",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "auth", "register"]
+						}
+					}
+				},
+				{
+					"name": "Register — duplicate username (409)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('409 Conflict', () => pm.expect(pm.response.code).to.eql(409));",
+									"pm.test('Error body has path + message', () => {",
+									"    const body = pm.response.json();",
+									"    pm.expect(body.status).to.eql(409);",
+									"    pm.expect(body.message).to.include('taken');",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"auth": { "type": "noauth" },
+						"method": "POST",
+						"header": [{ "key": "Content-Type", "value": "application/json" }],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"username\": \"learner1\",\n  \"email\": \"other@example.com\",\n  \"password\": \"password123\"\n}",
+							"options": { "raw": { "language": "json" } }
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/auth/register",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "auth", "register"]
+						}
+					}
+				},
+				{
+					"name": "Register — validation error (400)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('400 Bad Request', () => pm.expect(pm.response.code).to.eql(400));",
+									"pm.test('Mentions invalid email', () => pm.expect(pm.response.json().message).to.include('email'));"
+								]
+							}
+						}
+					],
+					"request": {
+						"auth": { "type": "noauth" },
+						"method": "POST",
+						"header": [{ "key": "Content-Type", "value": "application/json" }],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"username\": \"x\",\n  \"email\": \"not-an-email\",\n  \"password\": \"short\"\n}",
+							"options": { "raw": { "language": "json" } }
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/auth/register",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "auth", "register"]
+						}
+					}
+				},
+				{
+					"name": "Login — by email",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('200 OK', () => pm.expect(pm.response.code).to.eql(200));",
+									"pm.test('Correct user returned', () => pm.expect(pm.response.json().email).to.eql('learner1@example.com'));"
+								]
+							}
+						}
+					],
+					"request": {
+						"auth": { "type": "noauth" },
+						"method": "POST",
+						"header": [{ "key": "Content-Type", "value": "application/json" }],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"usernameOrEmail\": \"learner1@example.com\",\n  \"password\": \"password123\"\n}",
+							"options": { "raw": { "language": "json" } }
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/auth/login",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "auth", "login"]
+						}
+					}
+				},
+				{
+					"name": "Login — wrong password (401)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('401 Unauthorized', () => pm.expect(pm.response.code).to.eql(401));",
+									"pm.test('Generic message (no user enumeration)', () =>",
+									"    pm.expect(pm.response.json().message).to.eql('Invalid username or password'));"
+								]
+							}
+						}
+					],
+					"request": {
+						"auth": { "type": "noauth" },
+						"method": "POST",
+						"header": [{ "key": "Content-Type", "value": "application/json" }],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"usernameOrEmail\": \"learner1\",\n  \"password\": \"wrong-password\"\n}",
+							"options": { "raw": { "language": "json" } }
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/auth/login",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "auth", "login"]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "2. Decks",
+			"item": [
+				{
+					"name": "Search public decks — by keyword",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('200 OK', () => pm.expect(pm.response.code).to.eql(200));",
+									"pm.test('Page structure', () => {",
+									"    const body = pm.response.json();",
+									"    pm.expect(body).to.have.property('content');",
+									"    pm.expect(body).to.have.property('totalElements');",
+									"});",
+									"pm.test('All results match keyword + public', () => {",
+									"    pm.response.json().content.forEach(d => {",
+									"        pm.expect(d.isPublic).to.eql(true);",
+									"        const hay = (d.title + ' ' + (d.category || '')).toLowerCase();",
+									"        pm.expect(hay).to.include('ielts');",
+									"    });",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"auth": { "type": "noauth" },
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/decks/search?q=ielts&page=0&size=20",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "decks", "search"],
+							"query": [
+								{ "key": "q", "value": "ielts" },
+								{ "key": "page", "value": "0" },
+								{ "key": "size", "value": "20" }
+							]
+						}
+					}
+				},
+				{
+					"name": "Search public decks — by category",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('200 OK', () => pm.expect(pm.response.code).to.eql(200));",
+									"pm.test('All in category Japanese', () =>",
+									"    pm.response.json().content.forEach(d => pm.expect(d.category).to.eql('Japanese')));"
+								]
+							}
+						}
+					],
+					"request": {
+						"auth": { "type": "noauth" },
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/decks/search?category=Japanese",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "decks", "search"],
+							"query": [{ "key": "category", "value": "Japanese" }]
+						}
+					}
+				},
+				{
+					"name": "Search — private decks excluded",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('200 OK', () => pm.expect(pm.response.code).to.eql(200));",
+									"pm.test('No private deck in results', () => {",
+									"    const privateId = Number(pm.collectionVariables.get('privateDeckId'));",
+									"    pm.response.json().content.forEach(d => pm.expect(d.id).to.not.eql(privateId));",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"auth": { "type": "noauth" },
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/decks/search?q=Private",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "decks", "search"],
+							"query": [{ "key": "q", "value": "Private" }]
+						}
+					}
+				},
+				{
+					"name": "Get public deck by id (anonymous OK)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('200 OK without auth', () => pm.expect(pm.response.code).to.eql(200));",
+									"pm.test('Correct deck', () => pm.expect(pm.response.json().id).to.eql(Number(pm.collectionVariables.get('deckId'))));"
+								]
+							}
+						}
+					],
+					"request": {
+						"auth": { "type": "noauth" },
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/decks/{{deckId}}",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "decks", "{{deckId}}"]
+						}
+					}
+				},
+				{
+					"name": "Get private deck as owner (200)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('200 OK for owner', () => pm.expect(pm.response.code).to.eql(200));",
+									"pm.test('isPublic false', () => pm.expect(pm.response.json().isPublic).to.eql(false));"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/decks/{{privateDeckId}}",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "decks", "{{privateDeckId}}"]
+						}
+					}
+				},
+				{
+					"name": "Get private deck anonymous (404)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('404 (existence hidden)', () => pm.expect(pm.response.code).to.eql(404));"
+								]
+							}
+						}
+					],
+					"request": {
+						"auth": { "type": "noauth" },
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/decks/{{privateDeckId}}",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "decks", "{{privateDeckId}}"]
+						}
+					}
+				},
+				{
+					"name": "Get non-existent deck (404)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('404 Not Found', () => pm.expect(pm.response.code).to.eql(404));"
+								]
+							}
+						}
+					],
+					"request": {
+						"auth": { "type": "noauth" },
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/decks/999999",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "decks", "999999"]
+						}
+					}
+				},
+				{
+					"name": "My decks (authenticated)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('200 OK', () => pm.expect(pm.response.code).to.eql(200));",
+									"pm.test('Only own decks, includes private', () => {",
+									"    const content = pm.response.json().content;",
+									"    pm.expect(content.length).to.be.at.least(3);",
+									"    content.forEach(d => pm.expect(d.creatorUsername).to.eql('learner1'));",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/decks/me?page=0&size=20",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "decks", "me"],
+							"query": [
+								{ "key": "page", "value": "0" },
+								{ "key": "size", "value": "20" }
+							]
+						}
+					}
+				},
+				{
+					"name": "Create deck — missing title (400)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('400 Bad Request', () => pm.expect(pm.response.code).to.eql(400));",
+									"pm.test('Validation message mentions title', () =>",
+									"    pm.expect(pm.response.json().message).to.include('title'));"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [{ "key": "Content-Type", "value": "application/json" }],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"description\": \"No title provided\",\n  \"isPublic\": true\n}",
+							"options": { "raw": { "language": "json" } }
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/decks",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "decks"]
+						}
+					}
+				},
+				{
+					"name": "Create deck — unauthenticated (403)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('403 Forbidden', () => pm.expect(pm.response.code).to.eql(403));"
+								]
+							}
+						}
+					],
+					"request": {
+						"auth": { "type": "noauth" },
+						"method": "POST",
+						"header": [{ "key": "Content-Type", "value": "application/json" }],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"title\": \"Anonymous deck\",\n  \"isPublic\": true\n}",
+							"options": { "raw": { "language": "json" } }
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/decks",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "decks"]
+						}
+					}
+				},
+				{
+					"name": "Update own deck",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('200 OK', () => pm.expect(pm.response.code).to.eql(200));",
+									"pm.test('Fields updated', () => {",
+									"    const body = pm.response.json();",
+									"    pm.expect(body.title).to.include('UPDATED');",
+									"    pm.expect(body.category).to.eql('Exam Prep');",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "PUT",
+						"header": [{ "key": "Content-Type", "value": "application/json" }],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"title\": \"IELTS Vocabulary – Band 7+ (UPDATED)\",\n  \"description\": \"Updated description after review\",\n  \"category\": \"Exam Prep\",\n  \"isPublic\": true\n}",
+							"options": { "raw": { "language": "json" } }
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/decks/{{deckId}}",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "decks", "{{deckId}}"]
+						}
+					}
+				},
+				{
+					"name": "Update other user's deck (403)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('403 Forbidden', () => pm.expect(pm.response.code).to.eql(403));"
+								]
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [{ "key": "token", "value": "{{accessToken2}}", "type": "string" }]
+						},
+						"method": "PUT",
+						"header": [{ "key": "Content-Type", "value": "application/json" }],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"title\": \"Hijacked deck\",\n  \"description\": \"Should not be possible\",\n  \"isPublic\": false\n}",
+							"options": { "raw": { "language": "json" } }
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/decks/{{deckId}}",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "decks", "{{deckId}}"]
+						}
+					}
+				},
+				{
+					"name": "Create temp deck (captures tempDeckId)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('201 Created', () => pm.expect(pm.response.code).to.eql(201));",
+									"pm.collectionVariables.set('tempDeckId', pm.response.json().id);"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [{ "key": "Content-Type", "value": "application/json" }],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"title\": \"Temporary deck – safe to delete\",\n  \"description\": \"Created by test\",\n  \"category\": \"Test\",\n  \"isPublic\": true\n}",
+							"options": { "raw": { "language": "json" } }
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/decks",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "decks"]
+						}
+					}
+				},
+				{
+					"name": "Delete own deck (204)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('204 No Content', () => pm.expect(pm.response.code).to.eql(204));"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/decks/{{tempDeckId}}",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "decks", "{{tempDeckId}}"]
+						}
+					}
+				},
+				{
+					"name": "Verify deleted deck is gone (404)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('404 after deletion', () => pm.expect(pm.response.code).to.eql(404));"
+								]
+							}
+						}
+					],
+					"request": {
+						"auth": { "type": "noauth" },
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/decks/{{tempDeckId}}",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "decks", "{{tempDeckId}}"]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "3. Cards",
+			"item": [
+				{
+					"name": "List cards of public deck (anonymous OK)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('200 OK without auth', () => pm.expect(pm.response.code).to.eql(200));",
+									"pm.test('Array with expected IELTS cards', () => {",
+									"    const cards = pm.response.json();",
+									"    pm.expect(cards).to.be.an('array').with.lengthOf.at.least(4);",
+									"    pm.expect(cards.map(c => c.term)).to.include.members(['ubiquitous', 'mitigate', 'meticulous', 'articulate']);",
+									"});"
+								]
+							}
+						}
+					],
+					"request": {
+						"auth": { "type": "noauth" },
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/decks/{{deckId}}/cards",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "decks", "{{deckId}}", "cards"]
+						}
+					}
+				},
+				{
+					"name": "Create card",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('201 Created', () => pm.expect(pm.response.code).to.eql(201));",
+									"pm.test('Deck linkage correct', () =>",
+									"    pm.expect(pm.response.json().deckId).to.eql(Number(pm.collectionVariables.get('deckId'))));"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [{ "key": "Content-Type", "value": "application/json" }],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"term\": \"resilient\",\n  \"definition\": \"Able to recover quickly from difficult conditions\",\n  \"hint\": \"Example: A resilient economy bounces back after a recession.\"\n}",
+							"options": { "raw": { "language": "json" } }
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/decks/{{deckId}}/cards",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "decks", "{{deckId}}", "cards"]
+						}
+					}
+				},
+				{
+					"name": "Create card — unauthenticated (403)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('403 Forbidden', () => pm.expect(pm.response.code).to.eql(403));"
+								]
+							}
+						}
+					],
+					"request": {
+						"auth": { "type": "noauth" },
+						"method": "POST",
+						"header": [{ "key": "Content-Type", "value": "application/json" }],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"term\": \"sneaky\",\n  \"definition\": \"Should not be created\"\n}",
+							"options": { "raw": { "language": "json" } }
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/decks/{{deckId}}/cards",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "decks", "{{deckId}}", "cards"]
+						}
+					}
+				},
+				{
+					"name": "Update card",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('200 OK', () => pm.expect(pm.response.code).to.eql(200));",
+									"pm.test('Definition updated', () =>",
+									"    pm.expect(pm.response.json().definition).to.include('revised definition'));"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "PUT",
+						"header": [{ "key": "Content-Type", "value": "application/json" }],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"term\": \"mitigate\",\n  \"definition\": \"To make something less severe (revised definition)\",\n  \"hint\": \"Synonym: alleviate, reduce\"\n}",
+							"options": { "raw": { "language": "json" } }
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/decks/{{deckId}}/cards/{{cardId}}",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "decks", "{{deckId}}", "cards", "{{cardId}}"]
+						}
+					}
+				},
+				{
+					"name": "Cross-deck card access (404)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('404 – card not in this deck', () => pm.expect(pm.response.code).to.eql(404));"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "PUT",
+						"header": [{ "key": "Content-Type", "value": "application/json" }],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"term\": \"mitigate\",\n  \"definition\": \"Attempting to update via wrong deck id\"\n}",
+							"options": { "raw": { "language": "json" } }
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/decks/{{kanjiDeckId}}/cards/{{cardId}}",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "decks", "{{kanjiDeckId}}", "cards", "{{cardId}}"]
+						}
+					}
+				},
+				{
+					"name": "Create temp card (captures tempCardId)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('201 Created', () => pm.expect(pm.response.code).to.eql(201));",
+									"pm.collectionVariables.set('tempCardId', pm.response.json().id);"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [{ "key": "Content-Type", "value": "application/json" }],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"term\": \"obsolete-card\",\n  \"definition\": \"This card is created only to be deleted by the next request\"\n}",
+							"options": { "raw": { "language": "json" } }
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/decks/{{deckId}}/cards",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "decks", "{{deckId}}", "cards"]
+						}
+					}
+				},
+				{
+					"name": "Delete card (204)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"type": "text/javascript",
+								"exec": [
+									"pm.test('204 No Content', () => pm.expect(pm.response.code).to.eql(204));"
+								]
+							}
+						}
+					],
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/decks/{{deckId}}/cards/{{tempCardId}}",
+							"host": ["{{baseUrl}}"],
+							"path": ["api", "decks", "{{deckId}}", "cards", "{{tempCardId}}"]
+						}
+					}
+				}
+			]
+		}
+	]
+}
