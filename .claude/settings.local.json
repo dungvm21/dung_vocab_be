@@ -33,7 +33,15 @@
       "Bash(lsof -nP -iTCP:8080 -sTCP:LISTEN | head -5)",
       "Bash(ps -p 2836 -o pid,lstart,command | cat)",
       "Bash(kill 70206 2>/dev/null; sleep 2; lsof -nP -iTCP:8081 -sTCP:LISTEN | grep -q 8081 && echo \"still up\" || echo \"app stopped\")",
-      "Bash(./gradlew compileJava -q && java -cp build/classes/java/main com.example.quizlet.learning.LearningDemo)"
+      "Bash(./gradlew compileJava -q && java -cp build/classes/java/main com.example.quizlet.learning.LearningDemo)",
+      "Bash(ls /Users/vomanh.dung/IdeaProjects/quizlet_fake/src/main/resources/db/migration/ && cat /Users/vomanh.dung/IdeaProjects/quizlet_fake/src/main/resources/application*.yml /Users/vomanh.dung/IdeaProjects/quizlet_fake/src/main/resources/application*.properties 2>/dev/null)",
+      "Bash(./gradlew compileJava -q 2>&1 | tail -20; echo \"EXIT=$?\")",
+      "Bash(docker ps --filter name=quizlet-fake-postgres --format '{{.Names}} {{.Status}}')",
+      "Bash(./gradlew bootRun)",
+      "Bash(lsof -ti :8081 | xargs ps -o pid,etime,command -p)",
+      "Bash(/opt/homebrew/opt/postgresql@15/bin/psql -h localhost -U postgres -d quizlet_fake -c \"SELECT card_id, state, consecutive_correct, starred FROM card_progress ORDER BY card_id;\" -c \"SELECT card_id, mode, is_correct, selected_card_id FROM study_attempts ORDER BY id;\" 2>/dev/null)",
+      "Bash(docker exec quizlet-fake-postgres psql -U postgres -d quizlet_fake -c \"SELECT card_id, state, consecutive_correct, starred FROM card_progress ORDER BY card_id;\" -c \"SELECT card_id, mode, is_correct, selected_card_id FROM study_attempts ORDER BY id;\")",
+      "Bash(curl -s -o /dev/null -w '%{http_code}' http://localhost:8081/api/decks/search)"
     ]
   }
 }

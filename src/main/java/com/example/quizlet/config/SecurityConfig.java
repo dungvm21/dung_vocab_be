@@ -47,6 +47,9 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         // Registration & login are open.
                         .requestMatchers("/api/auth/**").permitAll()
+                        // Study tracks per-user progress — always needs a JWT.
+                        // MUST come before the public GET rule below.
+                        .requestMatchers("/api/decks/*/study/**").authenticated()
                         // Anyone (including anonymous) may read public decks & search.
                         .requestMatchers(HttpMethod.GET, "/api/decks/**").permitAll()
                         // Everything else requires a valid JWT.
