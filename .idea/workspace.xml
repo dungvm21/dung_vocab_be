@@ -5,9 +5,8 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="495d7682-d2c6-44ea-8eaa-9b4327799207" name="Changes" comment="">
-      <change afterPath="$PROJECT_DIR$/.idea/sqldialects.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.idea/vcs.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.claude/settings.local.json" beforeDir="false" afterPath="$PROJECT_DIR$/.claude/settings.local.json" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.gradle/8.14.3/checksums/checksums.lock" beforeDir="false" afterPath="$PROJECT_DIR$/.gradle/8.14.3/checksums/checksums.lock" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.gradle/8.14.3/executionHistory/executionHistory.bin" beforeDir="false" afterPath="$PROJECT_DIR$/.gradle/8.14.3/executionHistory/executionHistory.bin" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.gradle/8.14.3/executionHistory/executionHistory.lock" beforeDir="false" afterPath="$PROJECT_DIR$/.gradle/8.14.3/executionHistory/executionHistory.lock" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.gradle/8.14.3/fileHashes/fileHashes.bin" beforeDir="false" afterPath="$PROJECT_DIR$/.gradle/8.14.3/fileHashes/fileHashes.bin" afterDir="false" />
@@ -17,9 +16,12 @@
       <change beforePath="$PROJECT_DIR$/.idea/dataSources/b14c5d18-bf49-4e3a-b78a-43ed1f45b819.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/dataSources/b14c5d18-bf49-4e3a-b78a-43ed1f45b819.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/dataSources/b14c5d18-bf49-4e3a-b78a-43ed1f45b819/storage_v2/_src_/database/quizlet_fake.TgTdyQ/schema/public.abK9xQ.meta" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/dataSources/b14c5d18-bf49-4e3a-b78a-43ed1f45b819/storage_v2/_src_/database/quizlet_fake.TgTdyQ/schema/public.abK9xQ.meta" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/build/classes/java/main/com/example/quizlet/config/SecurityConfig.class" beforeDir="false" afterPath="$PROJECT_DIR$/build/classes/java/main/com/example/quizlet/config/SecurityConfig.class" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/build/tmp/compileJava/compileTransaction/stash-dir/StudyController.class.uniqueId0" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/build/tmp/compileJava/compileTransaction/stash-dir/StudyService.class.uniqueId1" beforeDir="false" />
       <change beforePath="$PROJECT_DIR$/build/tmp/compileJava/previous-compilation-data.bin" beforeDir="false" afterPath="$PROJECT_DIR$/build/tmp/compileJava/previous-compilation-data.bin" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/com/example/quizlet/config/SecurityConfig.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/example/quizlet/config/SecurityConfig.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/BACKEND.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/BACKEND.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/STUDY.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/STUDY.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/docs/STUDY.vi.md" beforeDir="false" afterPath="$PROJECT_DIR$/docs/STUDY.vi.md" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -129,7 +131,7 @@
       <option name="number" value="Default" />
       <option name="presentableId" value="Default" />
       <updated>1791482676101</updated>
-      <workItem from="1791485984074" duration="8353000" />
+      <workItem from="1791485984074" duration="15482000" />
     </task>
     <servers />
   </component>

@@ -10,13 +10,20 @@ Related docs: [BACKEND.md](BACKEND.md) (system overview), §9 learning engine, �
 
 ## 1. Purpose & Scope
 
+The platform offers **two independent learning modes** for every deck — the user picks one or both:
+
+1. **Study (MCQ)** — quiz-style learning. Zero setup: works on any viewable deck immediately. Tracks `NOT_LEARNED → STILL_LEARNING → MASTERED` per user/card (`card_progress` table).
+2. **SRS (Spaced Repetition)** — daily review queue with SM-2 scheduling. Opt-in: user adds single words (`save`) or enrolls a whole deck (`enroll`), then reviews due cards with quality scores 1–4 (`user_card_progress` table).
+
+The modes share decks and cards but keep **independent progress** — mastering a word in MCQ never changes its SRS schedule, and vice versa. A user may quiz with MCQ in the morning and clear their SRS queue at night, on the same deck.
+
 The Study feature turns a flashcard deck into an interactive learning session:
 
 - User is shown a **question** (a card's definition) and picks the correct **term** from 4 options
 - The system grades the answer **server-side**, updates the word's **learning state**, records the attempt, and reports deck progress
 - Learning state is tracked **per user, per card** — studying someone else's public deck never affects its owner or other learners
 
-Out of scope (future): reverse direction (term → definition), writing mode, SRS interval scheduling, review lists.
+Out of scope (future): reverse direction (term → definition), writing mode, cross-mode auto-sync.
 
 ---
 
@@ -119,6 +126,24 @@ All endpoints under `/api/decks/{deckId}/study` — **authentication (JWT) requi
 | POST | `/study/answer` | Submit one answer → graded + state updated |
 | GET | `/study/progress` | Deck-wide progress for the caller |
 | POST | `/study/cards/{cardId}/star` | Toggle starred flag |
+
+### SRS review queue (mode 2) — `/api/reviews`
+
+| Method | Endpoint | Purpose |
+|---|---|---|
+| POST | `/api/reviews/{cardId}/save` | Add one word to the review queue — due immediately, idempotent |
+| POST | `/api/reviews/decks/{deckId}/enroll` | Add every card of a deck — idempotent, returns counts |
+| GET | `/api/reviews/due?limit=20` | Cards due for review right now, oldest due first |
+| POST | `/api/reviews/{cardId}` | Grade a review: `{"quality": 1..4}` → SM-2 reschedules the card |
+| DELETE | `/api/reviews/{cardId}` | Remove one word from the queue (MCQ progress untouched) |
+
+### Typical session per mode
+
+```
+MCQ:  GET study/quiz → for each question: POST study/answer
+SRS:  one-time: enroll deck (or save individual words)
+      daily: GET reviews/due → for each card: POST reviews/{cardId} {quality}
+```
 
 ### 5.1 Full learning session (example)
 
@@ -284,6 +309,8 @@ while progress.percent < 100:
 | Attempt history table now, review endpoint later | Cheap to write every answer; enables "my mistakes" + SRS without backfill |
 | Skip = incorrect | Matches conservative learning: only demonstrated knowledge counts |
 | All study endpoints require auth | Progress is personal; anonymous studying has nothing to persist |
+| Two modes with separate tables | MCQ (instant, quiz-driven) and SRS (scheduled, memory-driven) serve different demands; coupling them would force one workflow on everyone. Enrollment endpoints (`save`/`enroll`) are the explicit bridge |
+| SRS enrollment due-immediately | A saved word should be revisable right away; SM-2 takes over after the first graded review |
 
 ---
 
@@ -292,4 +319,4 @@ while progress.percent < 100:
 1. **Review lists** — `GET /api/decks/{id}/study/mistakes` over `study_attempts` (schema ready)
 2. **Reverse direction** — `TERM_TO_DEFINITION` MCQ (prompt = term, options = definitions)
 3. **FLASHCARD / WRITING modes** — new `StudyMode` values + widen V5 CHECK in a new migration
-4. **SRS scheduling** — use attempt history to schedule reviews (SM-2 style), eventually replacing the fixed 2-streak threshold
+4. **Cross-mode integration** — e.g. auto-save MCQ-mastered words into the SRS queue, or unified dashboard combining both modes' progress

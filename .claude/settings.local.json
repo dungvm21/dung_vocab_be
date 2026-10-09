@@ -41,7 +41,10 @@
       "Bash(lsof -ti :8081 | xargs ps -o pid,etime,command -p)",
       "Bash(/opt/homebrew/opt/postgresql@15/bin/psql -h localhost -U postgres -d quizlet_fake -c \"SELECT card_id, state, consecutive_correct, starred FROM card_progress ORDER BY card_id;\" -c \"SELECT card_id, mode, is_correct, selected_card_id FROM study_attempts ORDER BY id;\" 2>/dev/null)",
       "Bash(docker exec quizlet-fake-postgres psql -U postgres -d quizlet_fake -c \"SELECT card_id, state, consecutive_correct, starred FROM card_progress ORDER BY card_id;\" -c \"SELECT card_id, mode, is_correct, selected_card_id FROM study_attempts ORDER BY id;\")",
-      "Bash(curl -s -o /dev/null -w '%{http_code}' http://localhost:8081/api/decks/search)"
+      "Bash(curl -s -o /dev/null -w '%{http_code}' http://localhost:8081/api/decks/search)",
+      "Bash(./gradlew compileJava -q 2>&1 | tail -10; echo \"EXIT=$?\")",
+      "Bash(docker exec quizlet-fake-postgres psql -U postgres -d quizlet_fake -c \"SELECT card_id, interval_days, repetition, ease_factor, status, next_review_date FROM user_card_progress ORDER BY card_id;\")",
+      "Bash(docker exec quizlet-fake-postgres psql -U postgres -d quizlet_fake -c \"SELECT id, user_id, card_id, status FROM user_card_progress ORDER BY card_id, user_id;\" -c \"\\\\d user_card_progress\" | head -40)"
     ]
   }
 }

@@ -10,13 +10,20 @@ Tài liệu liên quan: [BACKEND.md](BACKEND.md) (tổng quan hệ thống), §9
 
 ## 1. Mục đích & Phạm vi
 
+Hệ thống có **hai chế độ học độc lập** cho mọi deck — người học chọn một hoặc cả hai:
+
+1. **Study (trắc nghiệm MCQ)** — học theo kiểu quiz. Không cần cài đặt gì: dùng được ngay với mọi deck mà người gọi xem được. Theo dõi trạng thái `NOT_LEARNED → STILL_LEARNING → MASTERED` theo từng người dùng/thẻ (bảng `card_progress`).
+2. **SRS (Spaced Repetition — lặp lại ngắt quãng)** — hàng đợi ôn tập hằng ngày với thuật toán SM-2. Theo hình thức chọn tham gia (opt-in): người học thêm từng từ (`save`) hoặc đăng ký cả deck (`enroll`), sau đó ôn các thẻ đến hạn bằng điểm chất lượng 1–4 (bảng `user_card_progress`).
+
+Hai chế độ dùng chung deck và thẻ nhưng giữ **tiến độ độc lập** — thuộc một từ ở MCQ không đổi lịch ôn SRS của từ đó và ngược lại. Người học có thể làm quiz MCQ buổi sáng và xóa hàng đợi SRS buổi tối, trên cùng một deck.
+
 Tính năng Study biến một bộ thẻ (deck) thành phiên học tương tác:
 
 - Người học thấy một **câu hỏi** (định nghĩa của một thẻ) và chọn **từ khóa (term)** đúng trong 4 phương án
 - Hệ thống chấm điểm **phía server**, cập nhật **trạng thái học** của từ, ghi lại lần trả lời, và báo tiến độ của deck
 - Trạng thái học được theo dõi **riêng cho từng người dùng, từng thẻ** — học deck công khai của người khác không ảnh hưởng đến chủ deck hay người học khác
 
-Ngoài phạm vi (tương lai): chiều ngược (từ → định nghĩa), chế độ tự viết (writing), lên lịch ôn tập SRS, danh sách ôn lại.
+Ngoài phạm vi (tương lai): chiều ngược (từ → định nghĩa), chế độ tự viết (writing), đồng bộ tự động giữa hai chế độ.
 
 ---
 
@@ -119,6 +126,24 @@ Tất cả endpoint nằm dưới `/api/decks/{deckId}/study` — **bắt buộc
 | POST | `/study/answer` | Nộp một câu trả lời → chấm + cập nhật trạng thái |
 | GET | `/study/progress` | Tiến độ của deck cho người gọi |
 | POST | `/study/cards/{cardId}/star` | Bật/tắt đánh dấu sao |
+
+### Hàng đợi ôn tập SRS (chế độ 2) — `/api/reviews`
+
+| Method | Endpoint | Mục đích |
+|---|---|---|
+| POST | `/api/reviews/{cardId}/save` | Thêm một từ vào hàng đợi ôn — đến hạn ngay, idempotent |
+| POST | `/api/reviews/decks/{deckId}/enroll` | Thêm tất cả thẻ của một deck — idempotent, trả về số đếm |
+| GET | `/api/reviews/due?limit=20` | Các thẻ đến hạn ôn lúc này, đến hạn lâu nhất trước |
+| POST | `/api/reviews/{cardId}` | Chấm một lần ôn: `{"quality": 1..4}` → SM-2 tính lại lịch |
+| DELETE | `/api/reviews/{cardId}` | Gỡ một từ khỏi hàng đợi (tiến độ MCQ không bị ảnh hưởng) |
+
+### Phiên học điển hình theo từng chế độ
+
+```
+MCQ:  GET study/quiz → với mỗi câu: POST study/answer
+SRS:  một lần: enroll deck (hoặc save từng từ)
+      hằng ngày: GET reviews/due → với mỗi thẻ: POST reviews/{cardId} {quality}
+```
 
 ### 5.1 Một phiên học hoàn chỉnh (ví dụ)
 
@@ -284,6 +309,8 @@ while progress.percent < 100:
 | Ghi lịch sử trả lời ngay, endpoint ôn lỗi để sau | Ghi mỗi câu trả lời rẻ; sau này làm "danh sách lỗi" + SRS không cần backfill |
 | Bỏ qua = sai | Phù hợp nguyên tắc học thận trọng: chỉ kiến thức đã chứng minh mới được tính |
 | Mọi endpoint study đều cần xác thực | Tiến độ mang tính cá nhân; học ẩn danh không có gì để lưu |
+| Hai chế độ, hai bảng riêng | MCQ (ngay lập tức, theo kiểu quiz) và SRS (theo lịch, theo trí nhớ) phục vụ nhu cầu khác nhau; ghép cứng sẽ ép mọi người cùng một luồng. Các endpoint đăng ký (`save`/`enroll`) là cây cầu tường minh giữa hai chế độ |
+| Đăng ký SRS là đến hạn ngay | Từ vừa lưu phải ôn được ngay; SM-2 tiếp quản sau lần chấm đầu tiên |
 
 ---
 
@@ -292,4 +319,4 @@ while progress.percent < 100:
 1. **Danh sách ôn lỗi** — `GET /api/decks/{id}/study/mistakes` dựa trên `study_attempts` (schema đã sẵn sàng)
 2. **Chiều ngược** — trắc nghiệm `TERM_TO_DEFINITION` (đề = từ khóa, phương án = định nghĩa)
 3. **Chế độ FLASHCARD / WRITING** — thêm giá trị `StudyMode` mới + nới lỏng CHECK của V5 trong migration mới
-4. **Lên lịch SRS** — dùng lịch sử trả lời để lên lịch ôn (kiểu SM-2), dần thay thế ngưỡng cố định 2 lần đúng
+4. **Tích hợp hai chế độ** — ví dụ: tự động đưa từ MASTERED ở MCQ vào hàng đợi SRS, hoặc bảng điều khiển hợp nhất tiến độ của cả hai chế độ

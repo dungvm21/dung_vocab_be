@@ -20,6 +20,7 @@ Study feature deep-dive (business + workflow): [STUDY.md](STUDY.md) | [STUDY.vi.
 | Deck discovery | ✅ Done | Public deck search by free-text and category |
 | Learning engine | ✅ Done | Per-user state machine (Not Learned → Still Learning → Mastered), persisted |
 | Multiple-choice study | ✅ Done | Server-generated MCQ quiz (definition → pick term), grading, progress %, star flag |
+| SRS review scheduling | ✅ Done | Modified SM-2: quality 1–4, ease factor, intervals, due queue (`/api/reviews/**`) |
 
 **Product flow (end user perspective):**
 
@@ -389,7 +390,41 @@ Answer request/response:
 
 Note: `/api/decks/*/study/**` requires a JWT and is matched **before** the public `GET /api/decks/**` rule in SecurityConfig.
 
-### 7.5 Error format (all endpoints)
+### 7.5 SRS Reviews — `/api/reviews` (all authenticated)
+
+Spaced-repetition scheduling (modified SM-2), independent of the MCQ flow. State table: `user_card_progress` (V6).
+
+| Method | Path | Description | Success | Errors |
+|---|---|---|---|---|
+| GET | `/api/reviews/due?limit=20` | Cards with `next_review_date <= now`, oldest due first (max 100) | 200 | 401 |
+| POST | `/api/reviews/{cardId}` | Submit quality 1–4 → SM-2 recalculation, returns new schedule | 200 | 400 (quality invalid), 404 (card missing/invisible) |
+| POST | `/api/reviews/{cardId}/save` | Add one card to review queue, due immediately. Idempotent (`saved: false` if already queued) | 200 | 401, 404 |
+| POST | `/api/reviews/decks/{deckId}/enroll` | Add all deck cards to review queue. Idempotent per card; returns `{ totalCards, newlyEnrolled, alreadyEnrolled }` | 200 | 401, 404 |
+| DELETE | `/api/reviews/{cardId}` | Remove card from review queue (SRS row only; MCQ progress untouched). No-op if absent | 204 | 401, 404 |
+
+Enrollment is the bridge between the two learning modes: MCQ study needs no setup; SRS starts with `save`/`enroll` (both allow public decks — the queue is personal).
+
+```json
+// POST /api/reviews/8  body
+{ "quality": 3 }
+
+// response
+{ "cardId": 8, "quality": 3, "status": "REVIEW", "intervalDays": 1,
+  "easeFactor": 2.5, "repetition": 1, "nextReviewDate": "2026-10-10T10:37:55Z" }
+```
+
+Algorithm (see `UserCardProgress.applyReview`):
+
+| Quality | Meaning | Effect |
+|---|---|---|
+| 1 AGAIN | forgot | repetition=0, relearn in 10 min, ease −0.20, LEARNING |
+| 2 HARD | struggled | interval ×1.2 (or relearn if never recalled), ease −0.15 |
+| 3 GOOD | correct | repetition+1; first success → 1 day, then interval × ease, REVIEW |
+| 4 EASY | instant | like GOOD with interval × 1.3 bonus, ease +0.10 |
+
+Ease clamped [1.3, 2.8]; interval capped at 365 days; interval ≥ 21 days → MASTERED.
+
+### 7.6 Error format (all endpoints)
 
 Uniform body from `GlobalExceptionHandler`:
 
@@ -582,6 +617,7 @@ java -cp build/classes/java/main com.example.quizlet.learning.LearningDemo
 
 1. **Review lists**: "my mistakes in deck X" endpoint over `study_attempts` (schema ready)
 2. **Reverse direction**: term → definition MCQ (`?direction=TERM_TO_DEFINITION`)
-3. **Tests**: service-layer unit tests (Mockito), `@SpringBootTest` + Testcontainers Postgres for repository/`MockMvc` coverage of security rules
-4. **Production hardening**: real `JWT_SECRET` env, restrict CORS origins, HTTPS, rate limiting on `/api/auth/login`
-5. **Optional later**: full SRS (interval scheduling à la SM-2), FLASHCARD/WRITING modes, deck import/export (CSV), admin role features
+3. **SRS enhancements**: seed NEW cards into due queue, per-deck due filter, review on mobile-optimized batch sizes
+4. **Tests**: service-layer unit tests (Mockito), `@SpringBootTest` + Testcontainers Postgres for repository/`MockMvc` coverage of security rules
+5. **Production hardening**: real `JWT_SECRET` env, restrict CORS origins, HTTPS, rate limiting on `/api/auth/login`
+6. **Optional later**: FLASHCARD/WRITING modes, deck import/export (CSV), admin role features
