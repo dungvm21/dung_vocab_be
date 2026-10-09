@@ -108,34 +108,66 @@ src/main/java/com/example/quizlet/
 ├── controller/
 │   ├── AuthController.java        # /api/auth/**
 │   ├── DeckController.java        # /api/decks**
-│   └── CardController.java        # /api/decks/{deckId}/cards**
-├── service/
+│   ├── CardController.java        # /api/decks/{deckId}/cards**
+│   ├── StudyController.java       # /api/decks/{deckId}/study/**
+│   └── ReviewController.java      # /api/reviews**
+├── service/                       # INTERFACES (controllers depend on these — DIP)
 │   ├── AuthService.java
 │   ├── DeckService.java
-│   └── CardService.java
+│   ├── CardService.java
+│   ├── StudyService.java
+│   ├── ReviewService.java
+│   └── impl/                      # @Service implementations
+│       ├── AuthServiceImpl.java
+│       ├── DeckServiceImpl.java
+│       ├── CardServiceImpl.java
+│       ├── StudyServiceImpl.java
+│       └── ReviewServiceImpl.java
+├── srs/                           # SRS algorithm (strategy pattern, pure domain)
+│   ├── ReviewSchedulingPolicy.java    # interface — swap algorithms here
+│   ├── SrsSchedule.java               # immutable scheduling result
+│   └── Sm2SchedulingPolicy.java       # modified SM-2 implementation
 ├── repository/
 │   ├── UserRepository.java
 │   ├── DeckRepository.java
-│   └── CardRepository.java
+│   ├── CardRepository.java
+│   ├── CardProgressRepository.java
+│   └── UserCardProgressRepository.java
 ├── entity/
 │   ├── User.java                  # implements UserDetails
 │   ├── Role.java                  # enum
 │   ├── Deck.java
-│   └── Card.java
+│   ├── Card.java
+│   ├── CardProgress.java          # MCQ state machine per user/card
+│   ├── StudyAttempt.java          # MCQ answer history
+│   ├── StudyMode.java
+│   ├── UserCardProgress.java      # SRS state per user/card (dumb holder)
+│   ├── ReviewStatus.java
+│   └── ReviewQuality.java
 ├── dto/
 │   ├── auth/    (RegisterRequest, LoginRequest, AuthResponse)
 │   ├── deck/    (DeckRequest, DeckResponse)
-│   └── card/    (CardRequest, CardResponse)
+│   ├── card/    (CardRequest, CardResponse)
+│   ├── study/   (QuizResponse, StudyAnswerRequest/Response, DeckProgressResponse, CardProgressResponse)
+│   └── review/  (ReviewRequest, ReviewResponse, DueReviewsResponse, EnrollmentResponse, SavedReviewResponse)
 ├── exception/
 │   ├── GlobalExceptionHandler.java
 │   ├── ResourceNotFoundException.java
 │   └── DuplicateResourceException.java
-└── learning/                      # in-memory learning engine (see §9)
+└── learning/                      # in-memory reference engine (see §9)
     ├── WordState.java
     ├── VocabularyCard.java
     ├── StudySet.java
     └── LearningDemo.java          # mock execution, has main()
 ```
+
+### SOLID / clean architecture notes
+
+- **DIP**: controllers inject `service/` interfaces, never `*Impl` classes
+- **OCP**: SRS algorithm behind `ReviewSchedulingPolicy` — add `MochiSchedulingPolicy` etc. without touching `ReviewServiceImpl` or persistence
+- **SRP**: one service per feature area; scheduling math isolated from persistence and HTTP
+- **Pure domain**: `Sm2SchedulingPolicy` takes `now` as a parameter (no clock reads) → deterministic unit tests; returns immutable `SrsSchedule`, entity applies it (`applySchedule`)
+- Entity `UserCardProgress` is a dumb state holder — no algorithm code
 
 ---
 
@@ -413,7 +445,7 @@ Enrollment is the bridge between the two learning modes: MCQ study needs no setu
   "easeFactor": 2.5, "repetition": 1, "nextReviewDate": "2026-10-10T10:37:55Z" }
 ```
 
-Algorithm (see `UserCardProgress.applyReview`):
+Algorithm (see `srs/Sm2SchedulingPolicy`, injected as `ReviewSchedulingPolicy`):
 
 | Quality | Meaning | Effect |
 |---|---|---|
@@ -525,7 +557,7 @@ Code:
 
 - `entity/CardProgress` — same `recordCorrect()/recordIncorrect()` transitions as `learning.VocabularyCard`; dirty-checked updates via `save()`
 - `entity/StudyAttempt` + `entity/StudyMode` (`MULTIPLE_CHOICE`, extend + widen V5 CHECK together)
-- `service/StudyService` — quiz generation (shuffle mutable list, distractors from same deck), server-side grading, progress stats, star toggle
+- `service/StudyService` → `service/impl/StudyServiceImpl` — quiz generation (shuffle mutable list, distractors from same deck), server-side grading, progress stats, star toggle
 - `controller/StudyController` — see §7.4
 
 MCQ design points:
@@ -618,6 +650,6 @@ java -cp build/classes/java/main com.example.quizlet.learning.LearningDemo
 1. **Review lists**: "my mistakes in deck X" endpoint over `study_attempts` (schema ready)
 2. **Reverse direction**: term → definition MCQ (`?direction=TERM_TO_DEFINITION`)
 3. **SRS enhancements**: seed NEW cards into due queue, per-deck due filter, review on mobile-optimized batch sizes
-4. **Tests**: service-layer unit tests (Mockito), `@SpringBootTest` + Testcontainers Postgres for repository/`MockMvc` coverage of security rules
+4. **Tests**: started — `StudyServiceImplTest` (15 unit tests: quiz gen, filters, grading, state machine, progress, star; mocks at repo boundaries). Next: same pattern for `ReviewService`/`Sm2SchedulingPolicy`, then `@SpringBootTest` + Testcontainers for repository/security coverage
 5. **Production hardening**: real `JWT_SECRET` env, restrict CORS origins, HTTPS, rate limiting on `/api/auth/login`
 6. **Optional later**: FLASHCARD/WRITING modes, deck import/export (CSV), admin role features
