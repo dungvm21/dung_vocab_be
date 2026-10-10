@@ -21,21 +21,21 @@ import java.util.Date;
 public class JwtService {
 
     private final SecretKey signingKey;
-    private final long expirationMs;
+    private final long accessExpirationMs;
 
     public JwtService(@Value("${app.jwt.secret}") String base64Secret,
-                      @Value("${app.jwt.expiration-ms}") long expirationMs) {
+                      @Value("${app.jwt.access-expiration-ms}") long accessExpirationMs) {
         this.signingKey = Keys.hmacShaKeyFor(Base64.getDecoder().decode(base64Secret.getBytes(StandardCharsets.UTF_8)));
-        this.expirationMs = expirationMs;
+        this.accessExpirationMs = accessExpirationMs;
     }
 
-    /** Generates a signed token whose subject is the username. */
+    /** Generates a signed access token whose subject is the username. */
     public String generateToken(UserDetails userDetails) {
         Date now = new Date();
         return Jwts.builder()
                 .subject(userDetails.getUsername())
                 .issuedAt(now)
-                .expiration(new Date(now.getTime() + expirationMs))
+                .expiration(new Date(now.getTime() + accessExpirationMs))
                 .signWith(signingKey)
                 .compact();
     }
