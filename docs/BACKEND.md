@@ -4,6 +4,8 @@ Comprehensive reference for the backend system: technologies, business rules, da
 
 Study feature deep-dive (business + workflow): [STUDY.md](STUDY.md) | [STUDY.vi.md](STUDY.vi.md) (Tiếng Việt)
 
+Authentication & authorization deep-dive (incl. refresh tokens): [AUTH.md](AUTH.md)
+
 ---
 
 ## 1. Overview
@@ -15,6 +17,7 @@ Study feature deep-dive (business + workflow): [STUDY.md](STUDY.md) | [STUDY.vi.
 | Capability | Status | Description |
 |---|---|---|
 | User accounts | ✅ Done | Register, login (username **or** email), JWT auth |
+| Token refresh & logout | ✅ Done | Opaque DB-backed refresh tokens: 7-day TTL, rotation (single-use), reuse detection revokes the user's whole token family — see [AUTH.md](AUTH.md) |
 | Flashcard decks | ✅ Done | Create/edit/delete personal study sets; public or private |
 | Flashcards | ✅ Done | Term + definition + optional hint, nested in decks |
 | Deck discovery | ✅ Done | Public deck search by free-text and category |
@@ -63,7 +66,7 @@ Register/Login ──> Create Deck ──> Add Cards ("hello" → "xin chào")
 | DB host:port | `localhost:5432` | Docker container `quizlet-fake-postgres` |
 | DB name / user / pass | `quizlet_fake` / `postgres` / `postgres` | Dev only |
 | JWT secret | `JWT_SECRET` env var | Fallback dev key in `application.properties`; must be Base64, ≥ 256 bits |
-| Token TTL | 86,400,000 ms (24 h) | `app.jwt.expiration-ms` |
+| Token TTLs | access 15 min / refresh 7 days | `app.jwt.access-expiration-ms`, `app.jwt.refresh-expiration-days` |
 
 ---
 
@@ -180,9 +183,13 @@ users 1 ────────< decks 1 ────────< cards
 (id, username,     (title, is_public,   (term, definition,
  email, password,   creator_id FK,       hint, deck_id FK)
  role, created_at)  category)
+
+users 1 ────────< refresh_tokens
+                   (token_hash UNIQUE, expires_at, revoked_at NULL, created_at)
 ```
 
 - `User` **1 → N** `Deck` (`@ManyToOne(fetch = LAZY)`, `creator_id`)
+- `User` **1 → N** `RefreshToken` (`@ManyToOne(fetch = LAZY)`, `user_id`) — per-user session tokens
 - `Deck` **1 → N** `Card` (`@OneToMany(cascade = ALL, orphanRemoval = true)`, `mappedBy = "deck"`)
 - Deleting a deck cascades to its cards (both at JPA level and by owner-only delete flow)
 
@@ -225,6 +232,19 @@ Indexes: `idx_decks_creator_id (creator_id)`, `idx_decks_is_public (is_public)`
 
 Indexes: `idx_cards_deck_id (deck_id)`
 
+**`refresh_tokens`** (V7)
+
+| Column | Type | Constraints |
+|---|---|---|
+| id | BIGINT IDENTITY | PK |
+| user_id | BIGINT | NOT NULL, FK → `users(id)` (`fk_refresh_user`) |
+| token_hash | VARCHAR(64) | NOT NULL, UNIQUE (`uq_refresh_token_hash`) — SHA-256 hex of the raw token; raw never stored |
+| expires_at | TIMESTAMPTZ | NOT NULL — issued + 7 days |
+| revoked_at | TIMESTAMPTZ | nullable — **NULL = live**; set by rotation, logout, or theft response |
+| created_at | TIMESTAMPTZ | NOT NULL (`@PrePersist`) |
+
+Index: `idx_refresh_user_id (user_id)`. Full mechanics (rotation, reuse detection): [AUTH.md §3](AUTH.md).
+
 ### Entity ↔ table notes
 
 - `User.createdAt` set via `@PrePersist`; `Deck.createdAt` likewise
@@ -244,6 +264,10 @@ Indexes: `idx_cards_deck_id (deck_id)`
   1. `V1__create_users_table.sql`
   2. `V2__create_decks_table.sql`
   3. `V3__create_cards_table.sql`
+  4. `V4__create_card_progress_table.sql`
+  5. `V5__create_study_attempts_table.sql`
+  6. `V6__create_user_card_progress_table.sql`
+  7. `V7__create_refresh_tokens_table.sql`
 - Never edit an applied migration. Always add a new `V<n>__...sql`.
 - Boot 3.3.4 BOM does **not** manage `spring-boot-starter-flyway` → declare `org.flywaydb:flyway-core` + `flyway-database-postgresql` directly.
 - `baseline-on-migrate=false` (clean dev DB; set true only when adopting Flyway on an existing DB).
@@ -255,7 +279,8 @@ Indexes: `idx_cards_deck_id (deck_id)`
 ### Design
 
 - **Stateless**: no HTTP sessions (`SessionCreationPolicy.STATELESS`), CSRF disabled (no cookies)
-- **Token**: JWT, HS256, signed with Base64-decoded secret ≥ 256 bits, subject = username, 24 h expiry
+- **Access token**: JWT, HS256, signed with Base64-decoded secret ≥ 256 bits, subject = username, **15 min** expiry
+- **Refresh token**: opaque 256-bit SecureRandom string, TTL 7 days; only SHA-256 hash stored in `refresh_tokens`; single-use (rotated on every refresh); reuse of a burnt token revokes all of the user's tokens (theft response). Full detail: [AUTH.md](AUTH.md)
 - **Passwords**: BCrypt (encoded at registration, verified by `DaoAuthenticationProvider`)
 
 ### Request authentication flow
@@ -282,9 +307,10 @@ Client                         Server
 
 | Rule | Endpoints |
 |---|---|
-| `permitAll` | `/api/auth/**` (register, login) |
+| `permitAll` | `/api/auth/**` (register, login, refresh, logout) |
+| `authenticated` | `/api/decks/*/study/**` — must precede the GET rule below (first match wins) |
 | `permitAll` (GET only) | `/api/decks/**` — public deck reads, search, card lists |
-| `authenticated` | everything else (deck/card writes, `/api/decks/me`) |
+| `authenticated` | everything else (deck/card writes, `/api/decks/me`, `/api/reviews/**`) |
 
 ### Service-layer authorization (second gate)
 
@@ -297,8 +323,10 @@ Even authenticated users can only act within their rights — enforced in servic
 
 ### Auth business rules
 
-- **Register**: username ≥ 3 chars, email valid, password ≥ 8 chars; duplicate username/email (case-insensitive) → `409 Conflict`; new users get `ROLE_USER`; JWT issued immediately
+- **Register**: username ≥ 3 chars, email valid, password ≥ 8 chars; duplicate username/email (case-insensitive) → `409 Conflict`; new users get `ROLE_USER`; token pair issued immediately
 - **Login**: accepts `usernameOrEmail` — tries username first, then email; **uniform error message** `Invalid username or password` for both wrong password and unknown user (prevents account enumeration) → 401
+- **Refresh**: single-use — every successful refresh burns the presented token and issues a new pair; presenting a burnt token again → `401` **and** revokes every refresh token of that user (reuse = theft suspect). The revocation commits in its own `REQUIRES_NEW` transaction so the subsequent 401 rollback cannot undo it (real bug caught in e2e testing — see [AUTH.md §3.4](AUTH.md))
+- **Logout**: revokes the refresh token, idempotent (unknown token still 204); the access token just expires within ≤ 15 min
 - Bean-injection gotcha: `JwtAuthenticationFilter` is injected into `securityFilterChain(...)` as a **method parameter**, not constructor field — avoids circular dependency with the `userDetailsService` bean
 
 ### CORS
@@ -322,6 +350,7 @@ Base URL: `http://localhost:8081`. All bodies are JSON. Auth endpoints need no t
 // response
 {
   "accessToken": "eyJhbGciOi...",
+  "refreshToken": "VFY8xfmaggVWxw7O6sH66w47u2lLFV4wTj8mgcEwNKY",
   "tokenType": "Bearer",
   "id": 1,
   "username": "dung",
@@ -339,6 +368,22 @@ Validation: username 3–50, email valid ≤ 100, password 8–100.
 { "usernameOrEmail": "dung", "password": "secret123" }
 // response: same shape as register
 ```
+
+**POST `/api/auth/refresh`** → `200 OK` with a **new token pair** (old refresh token burnt — single-use rotation; replaying it → 401 and revokes all the user's refresh tokens)
+
+```json
+// request
+{ "refreshToken": "VFY8xfmaggVWxw7O6sH66w47u2lLFV4wTj8mgcEwNKY" }
+// response: same shape as register (accessToken + fresh refreshToken)
+```
+
+**POST `/api/auth/logout`** → `204 No Content` (revokes the refresh token; idempotent — unknown token still 204; access token simply expires within ≤ 15 min)
+
+```json
+{ "refreshToken": "VFY8xfmaggVWxw7O6sH66w47u2lLFV4wTj8mgcEwNKY" }
+```
+
+> Client loop: call APIs with `accessToken`; on `401` call `/refresh`; if refresh also 401s → re-login. See [AUTH.md §6](AUTH.md).
 
 ### 7.2 Decks — `/api/decks`
 
@@ -593,7 +638,8 @@ spring.flyway.locations=classpath:db/migration
 spring.flyway.baseline-on-migrate=false
 
 app.jwt.secret=${JWT_SECRET:<dev-fallback>}   # Base64, >= 256 bits
-app.jwt.expiration-ms=86400000                # 24h
+app.jwt.access-expiration-ms=900000           # 15 min access token
+app.jwt.refresh-expiration-days=7             # opaque refresh token TTL
 
 spring.jackson.default-property-inclusion=non_null
 spring.jackson.time-zone=UTC
@@ -642,6 +688,9 @@ java -cp build/classes/java/main com.example.quizlet.learning.LearningDemo
 | 11 | Anonymous JWT filter behavior | Missing/garbage token → request continues unauthenticated (public GETs still work) |
 | 12 | Cross-deck protection | Cards fetched via `findByIdAndDeckId`; writes guarded by deck ownership |
 | 13 | Legacy `pom.xml` | Present but unused; Gradle is the build system |
+| 14 | Reuse-detection revocation needs `REQUIRES_NEW` | `revokeAllForUser` runs in its own transaction; otherwise the 401 thrown right after rolls it back and the token family survives (caught in e2e) |
+| 15 | Property rename | `app.jwt.expiration-ms` → `app.jwt.access-expiration-ms` when refresh tokens landed; stale key = app fails to start (both keys required) |
+| 16 | Malformed JSON = 400 | `HttpMessageNotReadableException` handled explicitly; generic handler logs stack traces (`@Slf4j`) so 500s are debuggable |
 
 ---
 
