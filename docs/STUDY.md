@@ -133,6 +133,7 @@ All endpoints under `/api/decks/{deckId}/study` — **authentication (JWT) requi
 |---|---|---|
 | POST | `/api/reviews/{cardId}/save` | Add one word to the review queue — due immediately, idempotent |
 | POST | `/api/reviews/decks/{deckId}/enroll` | Add every card of a deck — idempotent, returns counts |
+| GET | `/api/reviews/saved` | IDs of **all** queued cards (including future-scheduled) — call on page load to restore "saved" UI state |
 | GET | `/api/reviews/due?limit=20` | Cards due for review right now, oldest due first |
 | POST | `/api/reviews/{cardId}` | Grade a review: `{"quality": 1..4}` → SM-2 reschedules the card |
 | DELETE | `/api/reviews/{cardId}` | Remove one word from the queue (MCQ progress untouched) |

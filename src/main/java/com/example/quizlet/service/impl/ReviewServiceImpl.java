@@ -134,6 +134,13 @@ public class ReviewServiceImpl implements ReviewService {
                 .ifPresent(progressRepository::delete);
     }
 
+    /** IDs of all cards in the caller's review queue — lets the client restore UI state on reload. */
+    @Override
+    @Transactional(readOnly = true)
+    public List<Long> savedCardIds(User currentUser) {
+        return progressRepository.findSavedCardIds(currentUser.getId());
+    }
+
     // ---- Helpers ----
 
     /** Card must exist AND live in a deck the caller can view. */

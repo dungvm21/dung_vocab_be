@@ -7,6 +7,8 @@ import com.example.quizlet.dto.review.ReviewResponse;
 import com.example.quizlet.dto.review.SavedReviewResponse;
 import com.example.quizlet.entity.User;
 
+import java.util.List;
+
 /**
  * SRS review contract: due-review queue, quality-scored reviews (SM-2),
  * and review-list enrollment (single card or whole deck).
@@ -27,4 +29,6 @@ public interface ReviewService {
 
     /** Removes a card from the caller's review queue. No-op if absent. */
     void removeFromReviewList(Long cardId, User user);
+
+    List<Long> savedCardIds(User currentUser);
 }

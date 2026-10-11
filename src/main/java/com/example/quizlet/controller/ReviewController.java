@@ -13,6 +13,8 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
+
 /**
  * SRS review endpoints (all authenticated via the global anyRequest rule).
  *
@@ -53,6 +55,11 @@ public class ReviewController {
     public SavedReviewResponse save(@PathVariable Long cardId,
                                     @AuthenticationPrincipal User currentUser) {
         return reviewService.saveToReviewList(cardId, currentUser);
+    }
+
+    @GetMapping("/saved")
+    public List<Long> savedCardIds(@AuthenticationPrincipal User currentUser) {
+        return reviewService.savedCardIds(currentUser);
     }
 
     @DeleteMapping("/{cardId}")

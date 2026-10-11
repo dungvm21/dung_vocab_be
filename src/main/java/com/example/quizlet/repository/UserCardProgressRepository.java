@@ -28,4 +28,11 @@ public interface UserCardProgressRepository extends JpaRepository<UserCardProgre
     List<UserCardProgress> findDue(@Param("userId") Long userId,
                                    @Param("now") Instant now,
                                    Pageable pageable);
+
+    /** IDs of every card the user has ever saved/enrolled for SRS review (any schedule state). */
+    @Query("""
+            select p.card.id from UserCardProgress p
+            where p.user.id = :userId
+            """)
+    List<Long> findSavedCardIds(@Param("userId") Long userId);
 }
