@@ -477,6 +477,7 @@ Spaced-repetition scheduling (modified SM-2), independent of the MCQ flow. State
 | POST | `/api/reviews/{cardId}` | Submit quality 1–4 → SM-2 recalculation, returns new schedule | 200 | 400 (quality invalid), 404 (card missing/invisible) |
 | POST | `/api/reviews/{cardId}/save` | Add one card to review queue, due immediately. Idempotent (`saved: false` if already queued) | 200 | 401, 404 |
 | POST | `/api/reviews/decks/{deckId}/enroll` | Add all deck cards to review queue. Idempotent per card; returns `{ totalCards, newlyEnrolled, alreadyEnrolled }` | 200 | 401, 404 |
+| GET | `/api/reviews/saved` | IDs of **all** cards in the caller's review queue — includes future-scheduled cards (`/due` only returns cards due *now*). Client calls it on page load to restore "saved" UI state | 200 `List<Long>` | 401 |
 | DELETE | `/api/reviews/{cardId}` | Remove card from review queue (SRS row only; MCQ progress untouched). No-op if absent | 204 | 401, 404 |
 
 Enrollment is the bridge between the two learning modes: MCQ study needs no setup; SRS starts with `save`/`enroll` (both allow public decks — the queue is personal).

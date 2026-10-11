@@ -133,6 +133,7 @@ Tất cả endpoint nằm dưới `/api/decks/{deckId}/study` — **bắt buộc
 |---|---|---|
 | POST | `/api/reviews/{cardId}/save` | Thêm một từ vào hàng đợi ôn — đến hạn ngay, idempotent |
 | POST | `/api/reviews/decks/{deckId}/enroll` | Thêm tất cả thẻ của một deck — idempotent, trả về số đếm |
+| GET | `/api/reviews/saved` | ID của **tất cả** thẻ đã lưu (kể cả thẻ hẹn tương lai) — gọi khi load trang để khôi phục trạng thái "đã lưu" trên UI |
 | GET | `/api/reviews/due?limit=20` | Các thẻ đến hạn ôn lúc này, đến hạn lâu nhất trước |
 | POST | `/api/reviews/{cardId}` | Chấm một lần ôn: `{"quality": 1..4}` → SM-2 tính lại lịch |
 | DELETE | `/api/reviews/{cardId}` | Gỡ một từ khỏi hàng đợi (tiến độ MCQ không bị ảnh hưởng) |
